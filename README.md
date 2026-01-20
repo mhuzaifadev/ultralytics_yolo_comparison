@@ -31,6 +31,17 @@
 
 ---
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=MaB2kXFC_gE">
+    <img src="https://img.youtube.com/vi/MaB2kXFC_gE/maxresdefault.jpg" width="800" />
+  </a>
+</p>
+
+<p align="center"><i>Click to watch the demo</i></p>
+
+
+---
+
 ## Features
 
 | Feature | Description |
