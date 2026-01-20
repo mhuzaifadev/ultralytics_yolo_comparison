@@ -73,7 +73,7 @@
 
 Run benchmarks instantly without any local setup:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mhuzaifadev/ultralytics_yolo_comparision/blob/main/colab_notebook.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mhuzaifadev/ultralytics_yolo_comparision/blob/main/yolo_benchmarks_for_colab.ipynb)
 
 **Or manually in Colab:**
 
