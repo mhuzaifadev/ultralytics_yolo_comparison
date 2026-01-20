@@ -133,7 +133,8 @@ python yolo_benchmark_driver.py --video your_video.mp4 --versions 5 8 11 26
 
 **Prerequisites:**
 - Python 3.9 or higher
-- Apple Silicon (M1/M2/M3) recommended for MPS acceleration
+- Apple Silicon (M1 or later) recommended for MPS acceleration 
+  macos Tahoe has significantly better performance than Seqeuoia 
 
 **Steps:**
 
