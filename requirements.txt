@@ -1,0 +1,11 @@
+ultralytics
+opencv-python
+numpy
+matplotlib
+pandas
+scikit-learn
+scikit-image
+scikit-video
+scikit-video
+dataclasses
+logging
