@@ -66,6 +66,9 @@ class YOLOBenchmark:
     - Mode 3: Detect only humans/persons (COCO class ID: 0)
     """
     
+    # Class variable to track if logging has been initialized
+    _logging_initialized = False
+    
     MODEL_VERSIONS = {
         5: "yolov5xu",  # Use 'xu' variant for improved Ultralytics-trained model
         8: "yolov8",
@@ -129,26 +132,41 @@ class YOLOBenchmark:
         self.logger = logging.getLogger("YOLOBenchmark")
         self.logger.setLevel(getattr(logging, log_level))
         
-        # File handler
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        fh = logging.FileHandler(log_dir / f"benchmark_{timestamp}.log")
-        fh.setLevel(logging.DEBUG)
+        # Prevent propagation to root logger to avoid duplicate messages
+        self.logger.propagate = False
         
-        # Console handler
-        ch = logging.StreamHandler()
-        ch.setLevel(getattr(logging, log_level))
-        
-        # Formatter
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
-        fh.setFormatter(formatter)
-        ch.setFormatter(formatter)
-        
-        # Add handlers
-        self.logger.addHandler(fh)
-        self.logger.addHandler(ch)
+        # Only setup handlers once (using class variable to track)
+        # This prevents duplicate handlers when multiple YOLOBenchmark instances are created
+        if not YOLOBenchmark._logging_initialized:
+            # Remove any existing handlers first (safety check)
+            existing_handlers = self.logger.handlers[:]
+            for handler in existing_handlers:
+                self.logger.removeHandler(handler)
+                handler.close()
+            
+            # File handler
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            fh = logging.FileHandler(log_dir / f"benchmark_{timestamp}.log")
+            fh.setLevel(logging.DEBUG)
+            
+            # Console handler
+            ch = logging.StreamHandler()
+            ch.setLevel(getattr(logging, log_level))
+            
+            # Formatter
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            fh.setFormatter(formatter)
+            ch.setFormatter(formatter)
+            
+            # Add handlers
+            self.logger.addHandler(fh)
+            self.logger.addHandler(ch)
+            
+            # Mark logging as initialized
+            YOLOBenchmark._logging_initialized = True
     
     def _detect_device(self) -> Tuple[str, str]:
         """
@@ -194,14 +212,15 @@ class YOLOBenchmark:
             # For CPU, use maximum workers
             return os.cpu_count() or 4
     
-    def _add_overlay_info(self, frame: np.ndarray, fps: float, num_detections: int, 
-                          frame_width: int, frame_height: int):
+    def _add_overlay_info(self, frame: np.ndarray, fps: float, inference_time_ms: float,
+                          num_detections: int, frame_width: int, frame_height: int):
         """
-        Add FPS and detections overlay to frame
+        Add FPS and detections overlay to frame (left side)
         
         Args:
             frame: Frame to add overlay to
-            fps: Current FPS value
+            fps: Current FPS value (averaged over half second)
+            inference_time_ms: Inference time in milliseconds (averaged over half second)
             num_detections: Number of detections in current frame
             frame_width: Width of the frame
             frame_height: Height of the frame
@@ -211,15 +230,15 @@ class YOLOBenchmark:
         font_scale = 1.25
         thickness = 2
         
-        # FPS text
-        fps_text = f"FPS: {fps:.1f}"
+        # FPS text with inference time in brackets
+        fps_text = f"FPS: {fps:.1f} ({inference_time_ms:.1f}ms)"
         
         # Get text size for FPS
         (fps_w, fps_h), fps_baseline = cv2.getTextSize(fps_text, font, font_scale, thickness)
         
-        # Position in right corner with padding
+        # Position in left corner with padding
         padding = 10
-        fps_x = frame_width - fps_w - padding
+        fps_x = padding
         fps_y = fps_h + padding
         
         # Draw black background for FPS
@@ -233,7 +252,7 @@ class YOLOBenchmark:
                    (255, 255, 255), thickness)  # White text
         
         # Detections text
-        detections_text = f"Total Detections per frame: {num_detections}"
+        detections_text = f"Total Detections: {num_detections}"
         
         # Get text size for detections
         (det_w, det_h), det_baseline = cv2.getTextSize(detections_text, font, font_scale, thickness)
@@ -294,14 +313,27 @@ class YOLOBenchmark:
             if self.device == "cuda":
                 # Enable TensorFloat-32 for faster computation on Ampere+ GPUs
                 torch.backends.cudnn.benchmark = True
+                torch.backends.cudnn.deterministic = False  # Allow non-deterministic for speed
                 torch.backends.cuda.matmul.allow_tf32 = True
                 torch.backends.cudnn.allow_tf32 = True
-                self.logger.info("✓ CUDA optimizations enabled (TF32, cuDNN benchmark)")
+                # Enable memory efficient attention if available
+                if hasattr(torch.backends.cuda, 'enable_flash_sdp'):
+                    torch.backends.cuda.enable_flash_sdp(True)
+                # Clear cache and optimize memory
+                torch.cuda.empty_cache()
+                # Enable memory pool for faster allocations
+                if hasattr(torch.cuda, 'set_per_process_memory_fraction'):
+                    torch.cuda.set_per_process_memory_fraction(0.9)  # Use 90% of GPU memory
+                self.logger.info("✓ CUDA optimizations enabled (TF32, cuDNN benchmark, flash attention)")
             elif self.device == "mps":
-                self.logger.info("✓ MPS device configured")
+                # MPS optimizations
+                if hasattr(torch.mps, 'empty_cache'):
+                    torch.mps.empty_cache()  # Clear MPS cache
+                self.logger.info("✓ MPS device configured with cache optimization")
             else:
                 # For CPU, set number of threads
                 torch.set_num_threads(self.workers)
+                torch.set_num_interop_threads(self.workers)
                 self.logger.info(f"✓ CPU configured with {self.workers} threads")
             
             # Load model - Ultralytics YOLO will use the device automatically
@@ -451,6 +483,17 @@ class YOLOBenchmark:
         detection_counts = []
         confidence_scores = []
         
+        # Calculate update interval for half-second updates (video_fps / 2)
+        update_interval = max(1, int(video_fps / 2))
+        self.logger.info(f"FPS/ms update interval: every {update_interval} frames (half second)")
+        
+        # Variables for half-second averaging
+        half_second_fps_values = []
+        half_second_ms_values = []
+        frames_since_update = 0
+        displayed_fps = 0.0
+        displayed_ms = 0.0
+        
         # Open video
         cap = cv2.VideoCapture(video_path)
         frame_count = 0
@@ -465,12 +508,17 @@ class YOLOBenchmark:
                 start_time = time.time()
                 
                 # Run inference with class filtering based on mode
+                # Optimized for maximum GPU performance
                 inference_kwargs = {
                     'conf': conf_threshold,
                     'iou': iou_threshold if version != 26 else 0.0,
                     'verbose': False,
                     'device': self.device  # Explicitly set device for inference
                 }
+                
+                # Enable half precision (FP16) for CUDA/MPS for faster inference
+                if self.device in ["cuda", "mps"]:
+                    inference_kwargs['half'] = True  # Use FP16 for 2x speed boost on modern GPUs
                 
                 # Add class filtering if mode is not "all objects"
                 if class_ids is not None:
@@ -498,6 +546,24 @@ class YOLOBenchmark:
                 fps_values.append(fps)
                 detection_counts.append(num_detections)
                 
+                # Accumulate values for half-second averaging
+                half_second_fps_values.append(fps)
+                half_second_ms_values.append(inference_time)
+                frames_since_update += 1
+                
+                # Update displayed values every half second
+                if frames_since_update >= update_interval:
+                    displayed_fps = np.mean(half_second_fps_values)
+                    displayed_ms = np.mean(half_second_ms_values)
+                    # Reset accumulators
+                    half_second_fps_values = []
+                    half_second_ms_values = []
+                    frames_since_update = 0
+                elif frame_count == 0:
+                    # Initialize with first frame values
+                    displayed_fps = fps
+                    displayed_ms = inference_time
+                
                 # Get annotated frame for visualization/saving
                 annotated_frame = results[0].plot()
                 
@@ -507,8 +573,9 @@ class YOLOBenchmark:
                     if annotated_frame.shape[:2] != (height, width):
                         annotated_frame = cv2.resize(annotated_frame, (width, height))
                 
-                # Add FPS and detections overlay in right corner
-                self._add_overlay_info(annotated_frame, fps, num_detections, width, height)
+                # Add FPS and detections overlay (left side)
+                # Use displayed values (averaged) for FPS/ms, current value for detections
+                self._add_overlay_info(annotated_frame, displayed_fps, displayed_ms, num_detections, width, height)
                 
                 # Save frame to video if enabled
                 if save_video and video_writer is not None:
