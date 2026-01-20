@@ -9,7 +9,7 @@
 
 **Compare YOLOv5, YOLOv8, YOLO11, and YOLO26 performance on your hardware**
 
-[View Benchmark Report](blog.md) | [Report Bug](https://github.com/mhuzaifadev/ultralytics_yolo_comparision/issues) | [Request Feature](https://github.com/mhuzaifadev/ultralytics_yolo_comparision/issues)
+[View Benchmark Report](blog.md) | [Report Bug](https://github.com/mhuzaifadev/ultralytics_yolo_comparison/issues) | [Request Feature](https://github.com/mhuzaifadev/ultralytics_yolo_comparison/issues)
 
 ---
 
@@ -73,14 +73,14 @@
 
 Run benchmarks instantly without any local setup:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mhuzaifadev/ultralytics_yolo_comparision/blob/main/yolo_benchmarks_for_colab.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mhuzaifadev/ultralytics_yolo_comparison/blob/main/yolo_benchmarks_for_colab.ipynb)
 
 **Or manually in Colab:**
 
 ```python
 # Clone the repository
-!git clone https://github.com/mhuzaifadev/ultralytics_yolo_comparision.git
-%cd ultralytics_yolo_comparision
+!git clone https://github.com/mhuzaifadev/ultralytics_yolo_comparison.git
+%cd ultralytics_yolo_comparison
 
 # Install dependencies
 !pip install -r requirements.txt
@@ -110,8 +110,8 @@ results = benchmark_yolo(
 
 ```powershell
 # 1. Clone the repository
-git clone https://github.com/mhuzaifadev/ultralytics_yolo_comparision.git
-cd ultralytics_yolo_comparision
+git clone https://github.com/mhuzaifadev/ultralytics_yolo_comparison.git
+cd ultralytics_yolo_comparison
 
 # 2. Create virtual environment
 python -m venv venv
@@ -140,8 +140,8 @@ python yolo_benchmark_driver.py --video your_video.mp4 --versions 5 8 11 26
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/mhuzaifadev/ultralytics_yolo_comparision.git
-cd ultralytics_yolo_comparision
+git clone https://github.com/mhuzaifadev/ultralytics_yolo_comparison.git
+cd ultralytics_yolo_comparison
 
 # 2. Create virtual environment
 python3 -m venv venv
@@ -168,8 +168,8 @@ python yolo_benchmark_driver.py --video your_video.mp4 --versions 5 8 11 26
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/mhuzaifadev/ultralytics_yolo_comparision.git
-cd ultralytics_yolo_comparision
+git clone https://github.com/mhuzaifadev/ultralytics_yolo_comparison.git
+cd ultralytics_yolo_comparison
 
 # 2. Create virtual environment
 python3 -m venv venv
